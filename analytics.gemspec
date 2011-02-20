@@ -24,6 +24,7 @@ Gem::Specification.new do |s|
     "README.rdoc",
     "Rakefile",
     "VERSION",
+    "analytics.gemspec",
     "lib/analytics.rb",
     "test/helper.rb",
     "test/test_analytics.rb"
