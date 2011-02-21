@@ -1,6 +1,43 @@
 # zxth analytics system
+require 'mysql2'
+
 module Analytics
+    #connect to mysql
+    DB='analytics'
+    CLIENT= Mysql2::Client.new(:host => "localhost", :username => "root",
+                                :socket => '/tmp/mysql.sock',:encoding => 'utf8',
+                                :database => DB)
+    # gather day visitor data
+    def self.gather_day_visitor
+        Util.gather_data{|site_id,client|
+            gatherer = FetchMainGatherData.new(site_id,client)
+            gatherer.gatherDayVisitor
+        }
+    end
+    # gather hour visitor data
+    def self.gather_hour_visitor
+        Util.gather_data{|site_id,client|
+            gatherer = FetchMainGatherData.new(site_id,client)
+            gatherer.gatherHourVisitor
+        }
+    end
+    #gather visitor data using dictionary group
+    def self.gather_dic_visitor gather_table,column_name
+        Util.gather_data{|site_id,client|
+            gatherer = FetchMainGatherData.new(site_id,client)
+            gatherer.gatherDicDayVisitor gather_table,column_name
+        }
+    end
     class Util
+        def self.gather_data
+            #Fetch all sites
+            sites = []
+            CLIENT.query("select id from sites",:as=> :array).each{|r| sites << r[0]}
+            #Gather day visitor data
+            sites.each{|site_id|
+                yield(site_id,CLIENT)
+            }
+        end
         # get query time by hour method
         def Util.hour_query_time
             now = Time.new
@@ -26,10 +63,11 @@ module Analytics
         end
         # gather visitor day data
         def gatherDayVisitor
-            pv = client.query("select count(id) from visitors where site_id=#{site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}",:as=>:array).first.first
-            ipv = client.query("select count(distinct ip) from visitors where site_id=#{site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}").first.first
+            now,yesterday_start,yesterday_end = Util.day_query_time
+            pv = @client.query("select count(id) from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}",:as=>:array).first.first
+            ipv = @client.query("select count(distinct ip) from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}").first.first
             @client.query("insert into site_day_gather(site_id,pv,ipv,day_time,created_at) 
-                 values( #{site_id},
+                 values( #{@site_id},
                          #{pv},
                          #{ipv},
                          #{yesterday_start},
@@ -37,17 +75,31 @@ module Analytics
         end
         # gather visitor hour data
         def gatherHourVisitor
-            pv = client.query("select count(id) from visitors where site_id=#{site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}",:as=>:array).first.first
-            ipv = client.query("select count(distinct ip) from visitors where site_id=#{site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}").first.first
+            now,last_hour_start,last_hour_end = Util.hour_query_time
+            pv = @client.query("select count(id) from visitors where site_id=#{@site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}",:as=>:array).first.first
+            ipv = @client.query("select count(distinct ip) from visitors where site_id=#{@site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}").first.first
             @client.query("insert into site_hour_gather(site_id,pv,ipv,hour_time,created_at) " +
-                 "values( #{site_id},
+                 "values( #{@site_id},
                          #{pv},
                          #{ipv},
                          #{last_hour_start},
                          #{now})")
         end
         # gather dictionary day visitor data
-        def gatherDicDayVisitor
+        def gatherDicDayVisitor gather_table,col
+
+            #get query timestamp
+            now,yesterday_start,yesterday_end = Util.day_query_time
+
+            @client.query("select count(id),#{col} from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end} group by #{col}",:as=>:array).each{|row|
+
+                @client.query("insert into #{gather_table}(site_id,pv,#{col},day_time,created_at) 
+                 values( #{@site_id},
+                              #{row[0]},
+                              #{row[1]},
+                              #{yesterday_start},
+                              #{now})")
+            }
         end
     end
 end
