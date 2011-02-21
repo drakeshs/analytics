@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Jun Tsai"]
-  s.date = %q{2011-02-20}
+  s.date = %q{2011-02-21}
   s.description = %q{Analytics System}
   s.email = %q{jcai@fepss.com}
   s.extra_rdoc_files = [
@@ -48,20 +48,20 @@ Gem::Specification.new do |s|
       s.add_development_dependency(%q<bundler>, ["~> 1.0.0"])
       s.add_development_dependency(%q<jeweler>, ["~> 1.5.2"])
       s.add_development_dependency(%q<rcov>, [">= 0"])
-      s.add_runtime_dependency(%q<mysql2>, ["> 0.1"])
+      s.add_runtime_dependency(%q<mysql2>, [">= 0.2.6"])
     else
       s.add_dependency(%q<shoulda>, [">= 0"])
       s.add_dependency(%q<bundler>, ["~> 1.0.0"])
       s.add_dependency(%q<jeweler>, ["~> 1.5.2"])
       s.add_dependency(%q<rcov>, [">= 0"])
-      s.add_dependency(%q<mysql2>, ["> 0.1"])
+      s.add_dependency(%q<mysql2>, [">= 0.2.6"])
     end
   else
     s.add_dependency(%q<shoulda>, [">= 0"])
     s.add_dependency(%q<bundler>, ["~> 1.0.0"])
     s.add_dependency(%q<jeweler>, ["~> 1.5.2"])
     s.add_dependency(%q<rcov>, [">= 0"])
-    s.add_dependency(%q<mysql2>, ["> 0.1"])
+    s.add_dependency(%q<mysql2>, [">= 0.2.6"])
   end
 end
 
