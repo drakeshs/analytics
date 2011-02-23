@@ -35,7 +35,11 @@ module Analytics
             CLIENT.query("select id from sites",:as=> :array).each{|r| sites << r[0]}
             #Gather day visitor data
             sites.each{|site_id|
-                yield(site_id,CLIENT)
+                begin
+                    yield(site_id,CLIENT)
+                rescue
+                    # 自动发送错误信息
+                end
             }
         end
         # get query time by hour method
