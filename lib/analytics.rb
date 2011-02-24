@@ -37,8 +37,9 @@ module Analytics
             sites.each{|site_id|
                 begin
                     yield(site_id,CLIENT)
-                rescue
-                    # 自动发送错误信息
+                rescue => err
+                    puts err
+                    # TODO 自动发送错误信息
                 end
             }
         end
