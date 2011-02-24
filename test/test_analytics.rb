@@ -1,4 +1,4 @@
-require 'helper'
+require 'test/unit'
 
 class TestAnalytics < Test::Unit::TestCase
   should "not null" do

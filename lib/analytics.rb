@@ -1,30 +1,44 @@
 # zxth analytics system
-require 'mysql2'
+require 'mysql'
 
 module Analytics
     #connect to mysql
     DB='analytics'
-    CLIENT= Mysql2::Client.new(:host => "localhost", :username => "root",
-                                :socket => '/tmp/mysql.sock',:encoding => 'utf8',
-                                :database => DB)
+    @client = nil
+    @stmt = nil 
+    def self.init
+        @client=Mysql.new("localhost", "root",nil,DB,nil,'/tmp/mysql.sock')
+        @client.autocommit(true)
+        @stmt = @client.stmt_init
+    end
+    def self.close
+        @stmt.close
+        @client.close
+    end
+    def self.client
+        @client
+    end
+    def self.stmt
+        @stmt
+    end
     # gather day visitor data
     def self.gather_day_visitor
-        Util.gather_data{|site_id,client|
-            gatherer = FetchMainGatherData.new(site_id,client)
+        Util.gather_data{|site_id|
+            gatherer = FetchMainGatherData.new(site_id)
             gatherer.gatherDayVisitor
         }
     end
     # gather hour visitor data
     def self.gather_hour_visitor
-        Util.gather_data{|site_id,client|
-            gatherer = FetchMainGatherData.new(site_id,client)
+        Util.gather_data{|site_id|
+            gatherer = FetchMainGatherData.new(site_id)
             gatherer.gatherHourVisitor
         }
     end
     #gather visitor data using dictionary group
     def self.gather_dic_visitor gather_table,column_name
-        Util.gather_data{|site_id,client|
-            gatherer = FetchMainGatherData.new(site_id,client)
+        Util.gather_data{|site_id|
+            gatherer = FetchMainGatherData.new(site_id)
             gatherer.gatherDicDayVisitor gather_table,column_name
         }
     end
@@ -32,11 +46,11 @@ module Analytics
         def self.gather_data
             #Fetch all sites
             sites = []
-            CLIENT.query("select id from sites",:as=> :array).each{|r| sites << r[0]}
+            Analytics.client.query("select id from sites").each{|r| sites << r[0]}
             #Gather day visitor data
             sites.each{|site_id|
                 begin
-                    yield(site_id,CLIENT)
+                    yield(site_id)
                 rescue => err
                     puts err
                     # TODO 自动发送错误信息
@@ -62,33 +76,41 @@ module Analytics
     end
     #Fetch main visitor data
     class FetchMainGatherData
-        def initialize(site_id,client)
+        def initialize(site_id)
             @site_id = site_id
-            @client = client
+            @client = Analytics.client
+            @stmt = Analytics.stmt
         end
         # gather visitor day data
         def gatherDayVisitor
             now,yesterday_start,yesterday_end = Util.day_query_time
-            pv = @client.query("select count(id) from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}",:as=>:array).first.first
-            ipv = @client.query("select count(distinct ip_id) from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}").first.first
-            @client.query("insert into site_day_gather(site_id,pv,ipv,day_time,created_at) 
-                 values( #{@site_id},
-                         #{pv},
-                         #{ipv},
-                         #{yesterday_start},
-                         #{now})")
+            pv = @client.query("select count(id) from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}").fetch_row[0]
+            ipv = @client.query("select count(distinct ip_id) from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}").fetch_row[0]
+            r = @client.query("select count(id) from site_day_gather where site_id=#{@site_id} and day_time=#{yesterday_start}").fetch_row[0]
+            if(r == 0)
+                @stmt.prepare("insert into site_day_gather(site_id,pv,ipv,day_time,created_at) "+
+                                " values(?,?,?,?,?)" )
+                @stmt.execute(@site_id,pv,ipv,yesterday_start,now)
+            else
+                @stmt.prepare("update site_day_gather set pv=?,ipv=?,created_at=? where site_id=? and day_time=?")
+                @stmt.execute(pv,ipv,now,@site_id,yesterday_start)
+            end
         end
         # gather visitor hour data
         def gatherHourVisitor
             now,last_hour_start,last_hour_end = Util.hour_query_time
-            pv = @client.query("select count(id) from visitors where site_id=#{@site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}",:as=>:array).first.first
-            ipv = @client.query("select count(distinct ip_id) from visitors where site_id=#{@site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}").first.first
-            @client.query("insert into site_hour_gather(site_id,pv,ipv,hour_time,created_at) " +
-                 "values( #{@site_id},
-                         #{pv},
-                         #{ipv},
-                         #{last_hour_start},
-                         #{now})")
+            pv = @client.query("select count(id) from visitors where site_id=#{@site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}").fetch_row[0]
+            ipv = @client.query("select count(distinct ip_id) from visitors where site_id=#{@site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}").fetch_row[0]
+
+            r = @client.query("select count(id) from site_hour_gather where site_id=#{@site_id} and hour_time=#{last_hour_start}").fetch_row[0]
+            if(r == 0)
+                @stmt.prepare("insert into site_hour_gather(site_id,pv,ipv,hour_time,created_at) "+
+                                " values(?,?,?,?,?)" )
+                @stmt.execute(@site_id,pv,ipv,last_hour_start,now)
+            else
+                @stmt.prepare("update site_hour_gather set pv=?,ipv=?,created_at=? where site_id=? and hour_time=?")
+                @stmt.execute(pv,ipv,now,@site_id,last_hour_start)
+            end
         end
         # gather dictionary day visitor data
         def gatherDicDayVisitor gather_table,col
@@ -96,14 +118,18 @@ module Analytics
             #get query timestamp
             now,yesterday_start,yesterday_end = Util.day_query_time
 
-            @client.query("select count(id),#{col} from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end} group by #{col}",:as=>:array).each{|row|
+            @client.query("select count(id),#{col} from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end} group by #{col}").each{|row|
 
-                @client.query("insert into #{gather_table}(site_id,pv,#{col},day_time,created_at) 
-                 values( #{@site_id},
-                              #{row[0]},
-                              #{row[1]},
-                              #{yesterday_start},
-                              #{now})")
+
+            r = @client.query("select count(id) from #{gather_table} where site_id=#{@site_id} and day_time=#{yesterday_start}").fetch_row[0]
+            if(r == 0 )
+                @stmt.prepare("insert into #{gather_table}(site_id,pv,day_time,created_at) "+
+                                " values(,?,?,?,?)" )
+                @stmt.execute(@site_id,pv,yesterday_start,now)
+            else
+                @stmt.prepare("update #{gather_table} set pv=?,created_at=? where site_id=? and day_time=?")
+                @stmt.execute(pv,now,@site_id,yesterday_start)
+            end
             }
         end
     end
