@@ -121,14 +121,14 @@ module Analytics
             @client.query("select count(id),#{col} from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end} group by #{col}").each{|row|
 
 
-            r = @client.query("select count(id) from #{gather_table} where site_id=#{@site_id} and day_time=#{yesterday_start}").fetch_row[0]
+            r = @client.query("select count(id) from #{gather_table} where site_id=#{@site_id} and day_time=#{yesterday_start} and #{col}=#{row[1]}").fetch_row[0]
             if(r == 0 )
-                @stmt.prepare("insert into #{gather_table}(site_id,pv,day_time,created_at) "+
-                                " values(,?,?,?,?)" )
-                @stmt.execute(@site_id,pv,yesterday_start,now)
+                @stmt.prepare("insert into #{gather_table}(site_id,pv,day_time,created_at,#{col}) "+
+                              " values(?,?,?,?,?)" )
+                @stmt.execute(@site_id,row[0],yesterday_start,now,row[1])
             else
-                @stmt.prepare("update #{gather_table} set pv=?,created_at=? where site_id=? and day_time=?")
-                @stmt.execute(pv,now,@site_id,yesterday_start)
+                @stmt.prepare("update #{gather_table} set pv=?,created_at=? where site_id=? and day_time=? and #{col}=?")
+                @stmt.execute(row[0],now,@site_id,yesterday_start,row[1])
             end
             }
         end
