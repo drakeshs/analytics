@@ -86,7 +86,7 @@ module Analytics
             now,yesterday_start,yesterday_end = Util.day_query_time
             pv = @client.query("select count(id) from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}").fetch_row[0]
             ipv = @client.query("select count(distinct ip_id) from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end}").fetch_row[0]
-            r = @client.query("select count(id) from site_day_gather where site_id=#{@site_id} and day_time=#{yesterday_start}").fetch_row[0]
+            r = @client.query("select count(id) from site_day_gather where site_id=#{@site_id} and day_time=#{yesterday_start}").fetch_row[0].to_i
             if(r == 0)
                 @stmt.prepare("insert into site_day_gather(site_id,pv,ipv,day_time,created_at) "+
                                 " values(?,?,?,?,?)" )
@@ -102,7 +102,7 @@ module Analytics
             pv = @client.query("select count(id) from visitors where site_id=#{@site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}").fetch_row[0]
             ipv = @client.query("select count(distinct ip_id) from visitors where site_id=#{@site_id} and created_at >= #{last_hour_start} and created_at <= #{last_hour_end}").fetch_row[0]
 
-            r = @client.query("select count(id) from site_hour_gather where site_id=#{@site_id} and hour_time=#{last_hour_start}").fetch_row[0]
+            r = @client.query("select count(id) from site_hour_gather where site_id=#{@site_id} and hour_time=#{last_hour_start}").fetch_row[0].to_i
             if(r == 0)
                 @stmt.prepare("insert into site_hour_gather(site_id,pv,ipv,hour_time,created_at) "+
                                 " values(?,?,?,?,?)" )
@@ -121,7 +121,7 @@ module Analytics
             @client.query("select count(id),#{col} from visitors where site_id=#{@site_id} and created_at > #{yesterday_start} and created_at < #{yesterday_end} group by #{col}").each{|row|
 
 
-            r = @client.query("select count(id) from #{gather_table} where site_id=#{@site_id} and day_time=#{yesterday_start} and #{col}=#{row[1]}").fetch_row[0]
+            r = @client.query("select count(id) from #{gather_table} where site_id=#{@site_id} and day_time=#{yesterday_start} and #{col}=#{row[1]}").fetch_row[0].to_i
             if(r == 0 )
                 @stmt.prepare("insert into #{gather_table}(site_id,pv,day_time,created_at,#{col}) "+
                               " values(?,?,?,?,?)" )
